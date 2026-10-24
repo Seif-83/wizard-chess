@@ -97,7 +97,7 @@ export function initWizardChess() {
     }
 
     const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.22, 65);
-    camera.position.set(0, 2.22, 2.72);
+    camera.position.set(0, 6.85, 3.65);
 
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
@@ -106,7 +106,7 @@ export function initWizardChess() {
     orbitControls.minPolarAngle = 0.05;
     orbitControls.minDistance = 0.95;
     orbitControls.maxDistance = 36.0;
-    orbitControls.target.set(0, 0.85, -0.15);
+    orbitControls.target.set(0, 0.78, 0);
     orbitControls.update();
 
     // =========================================================================
@@ -1507,6 +1507,20 @@ export function initWizardChess() {
       }
     }
 
+    function setCameraForTop(color, immediate = false) {
+      const zSign = color === 'b' ? -1 : 1;
+      const desiredPos = new THREE.Vector3(0, 6.85, zSign * 3.65);
+      const desiredTarget = new THREE.Vector3(0, 0.78, 0);
+      if (immediate) {
+        activeCamTransition = null;
+        camera.position.copy(desiredPos);
+        orbitControls.target.copy(desiredTarget);
+        flushOrbitControlsDamping();
+      } else {
+        smoothCameraTo(desiredPos, desiredTarget, 0.75);
+      }
+    }
+
     function instantiatePiece(type, color, r, c) {
       const tpl = pieceTemplates[`${type}_${color}`];
       let root;
@@ -1776,10 +1790,17 @@ export function initWizardChess() {
       }
 
       if (orientCamera) {
+        const isPlayerActive = document.getElementById('btn-cam-player')?.classList.contains('active');
         const viewSide = playerColor === 'b' ? 'b' : 'w';
-        playerCamSide = viewSide;
-        setActiveCamButton('btn-cam-player');
-        setCameraForSide(viewSide, false);
+        if (isPlayerActive) {
+          playerCamSide = viewSide;
+          setActiveCamButton('btn-cam-player');
+          setCameraForSide(viewSide, false);
+        } else {
+          overheadCamSide = viewSide;
+          setActiveCamButton('btn-cam-top');
+          setCameraForTop(viewSide, false);
+        }
       }
 
       renderer.shadowMap.needsUpdate = true;
@@ -4184,8 +4205,7 @@ export function initWizardChess() {
           overheadCamSide = playerColor === 'b' ? 'b' : 'w';
         }
         setActiveCamButton('btn-cam-top');
-        const zSign = overheadCamSide === 'b' ? -1 : 1;
-        smoothCameraTo(new THREE.Vector3(0, 6.85, zSign * 3.65), new THREE.Vector3(0, 0.78, 0), 0.75);
+        setCameraForTop(overheadCamSide, false);
       } else if (preset === 'side') {
         const wasSideActive = document.getElementById('btn-cam-side')?.classList.contains('active');
         if (wasSideActive) {
@@ -4945,6 +4965,8 @@ export function initWizardChess() {
         playerColor = 'b';
       }
       resetChessBoard(true, true);
+      setCameraForTop(playerColor, true);
+      setActiveCamButton('btn-cam-top');
       if (navigator.webdriver) {
         window.wizardChess.stepBy(0.9, 15);
       } else {

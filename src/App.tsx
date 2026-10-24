@@ -160,14 +160,14 @@ export default function App() {
           </div>
 
           <button
-            className="hud-btn active"
+            className="hud-btn"
             id="btn-cam-player"
             title="Player Camera (Click again to flip White / Black view)"
           >
             Player Cam
           </button>
           <button
-            className="hud-btn"
+            className="hud-btn active"
             id="btn-cam-top"
             title="Overhead Board View (Click again to flip White / Black orientation)"
           >
