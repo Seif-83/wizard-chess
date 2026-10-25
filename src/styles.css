@@ -656,7 +656,8 @@ body.cinematic-ui-hidden #hud-bottom {
     grid-column: span 3;
   }
 
-  /* Full-width Hide UI button */
+  /* Full-width Settings & Hide UI buttons */
+  #btn-settings-open,
   #btn-hide-ui {
     grid-column: span 6;
   }
@@ -754,4 +755,386 @@ body.cinematic-ui-hidden #hud-bottom {
     grid-column: span 3;
   }
 }
+
+/* =========================================================================
+   Settings HUD Button & Sanctuary Settings Modal
+   ========================================================================= */
+.hud-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-color: rgba(212, 175, 55, 0.35);
+}
+
+.hud-settings-btn:hover {
+  border-color: var(--gold);
+}
+
+.settings-btn-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.settings-mode-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.16);
+  color: var(--gold-bright);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+/* Modal Backdrop */
+.settings-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(5, 7, 14, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: settingsFadeIn 0.22s ease-out;
+}
+
+@keyframes settingsFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Card */
+.settings-modal-card {
+  background: linear-gradient(180deg, rgba(16, 21, 32, 0.96) 0%, rgba(9, 12, 18, 0.98) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.42);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85), 0 0 45px rgba(212, 175, 55, 0.14);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 88vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.4) rgba(0, 0, 0, 0.2);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: settingsSlideUp 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+  color: var(--text);
+}
+
+.settings-modal-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-modal-card::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+}
+
+.settings-modal-card::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.35);
+  border-radius: 999px;
+}
+
+.settings-modal-card::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+}
+
+@keyframes settingsSlideUp {
+  from {
+    transform: translateY(16px) scale(0.97);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.settings-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.settings-modal-subtitle {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.settings-modal-close {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.settings-modal-close:hover {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+  background: rgba(212, 175, 55, 0.12);
+}
+
+.settings-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin-top: 4px;
+}
+
+/* Presets Grid */
+.settings-presets-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.settings-preset-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text);
+  outline: none;
+}
+
+.settings-preset-card:hover {
+  border-color: rgba(212, 175, 55, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+.settings-preset-card.selected {
+  border: 1.5px solid var(--gold);
+  background: rgba(212, 175, 55, 0.14);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.18);
+}
+
+.preset-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.preset-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.preset-badge.recommended {
+  background: rgba(78, 168, 222, 0.18);
+  color: #70c4ff;
+  border: 1px solid rgba(78, 168, 222, 0.38);
+}
+
+.preset-badge.desktop {
+  background: rgba(212, 175, 55, 0.16);
+  color: var(--gold-bright);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+.preset-icon {
+  font-size: 1.1rem;
+}
+
+.preset-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.preset-desc {
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* Toggles List */
+.settings-toggles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.settings-toggle-row:last-child {
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toggle-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.toggle-desc {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.toggle-pill-group {
+  display: flex;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 999px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.toggle-pill-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+}
+
+.toggle-pill-btn:hover {
+  color: var(--text);
+}
+
+.toggle-pill-btn.active {
+  background: rgba(212, 175, 55, 0.24);
+  color: var(--gold-bright);
+  border-color: rgba(212, 175, 55, 0.42);
+}
+
+/* Modal Footer */
+.settings-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-reset-btn {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.settings-reset-btn:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.settings-done-btn {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: var(--gold);
+  color: var(--gold-bright);
+  padding: 8px 22px;
+}
+
+.settings-done-btn:hover {
+  background: rgba(212, 175, 55, 0.32);
+}
+
+/* Responsive adjustments for Settings Modal */
+@media (max-width: 600px) {
+  .settings-modal-card {
+    padding: 18px 16px;
+    max-height: 92vh;
+    border-radius: 16px;
+  }
+
+  .settings-presets-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-toggle-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .toggle-pill-group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    text-align: center;
+  }
+
+  .toggle-pill-btn {
+    text-align: center;
+  }
+
+  .settings-modal-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .settings-reset-btn,
+  .settings-done-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 

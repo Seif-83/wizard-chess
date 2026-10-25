@@ -40,14 +40,56 @@ export function initWizardChess() {
     const isAutomatedTest = Boolean(
       navigator.webdriver || new URLSearchParams(window.location.search).get('autotest') === '1'
     );
+    const STORAGE_KEY = 'wizard_chess_graphics_settings';
+    const DEFAULT_GRAPHICS_SETTINGS = {
+      preset: 'lite',
+      flames: false,
+      shadows: false,
+      pixelRatio: 1.0,
+      animations: 'lite',
+      idleAnimations: false,
+      envMap: false,
+      windowLights: false
+    };
+
+    function loadGraphicsSettings() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const isHigh = parsed.preset === 'high';
+          return {
+            preset: parsed.preset || (parsed.shadows ? 'high' : 'lite'),
+            flames: parsed.flames !== undefined ? Boolean(parsed.flames) : isHigh,
+            shadows: Boolean(parsed.shadows),
+            pixelRatio: parsed.pixelRatio === 2 ? 2.0 : 1.0,
+            animations: parsed.animations === 'cinematic' ? 'cinematic' : 'lite',
+            idleAnimations: Boolean(parsed.idleAnimations),
+            envMap: parsed.envMap !== undefined ? Boolean(parsed.envMap) : isHigh,
+            windowLights: parsed.windowLights !== undefined ? Boolean(parsed.windowLights) : isHigh
+          };
+        }
+      } catch (e) {}
+      return { ...DEFAULT_GRAPHICS_SETTINGS };
+    }
+
+    const currentGraphicsSettings = loadGraphicsSettings();
+
+    const brazierFlameMeshes = [];
+    const brazierCageMeshes = [];
+    const windowPointLights = [];
+    let cachedCathedralEnvTex = null;
+
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
       preserveDrawingBuffer: isAutomatedTest
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(
+      currentGraphicsSettings.pixelRatio === 2 ? Math.min(window.devicePixelRatio, 2) : 1.0
+    );
+    renderer.shadowMap.enabled = Boolean(currentGraphicsSettings.shadows);
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.shadowMap.autoUpdate = false;
     renderer.shadowMap.needsUpdate = true;
@@ -55,6 +97,110 @@ export function initWizardChess() {
     renderer.toneMappingExposure = 1.24;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
+
+    function getGraphicsQuality() {
+      return { ...currentGraphicsSettings };
+    }
+
+    function applyGraphicsStateToScene() {
+      const showFlames = Boolean(currentGraphicsSettings.flames);
+      const showShadows = Boolean(currentGraphicsSettings.shadows);
+      const showEnvMap = Boolean(currentGraphicsSettings.envMap);
+      const showWinLights = Boolean(currentGraphicsSettings.windowLights);
+
+      // 1. Pixel Ratio & Canvas
+      const targetDpr = currentGraphicsSettings.pixelRatio === 2 ? Math.min(window.devicePixelRatio, 2) : 1.0;
+      renderer.setPixelRatio(targetDpr);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      // 2. Dynamic Shadows
+      renderer.shadowMap.enabled = showShadows;
+      if (typeof keyLight !== 'undefined' && keyLight) {
+        keyLight.castShadow = showShadows;
+      }
+      renderer.shadowMap.needsUpdate = true;
+
+      // 3. Side Brazier Flames, Ember logs, Glow halos, and Point lights
+      brazierFlameMeshes.forEach((m) => { if (m) m.visible = showFlames; });
+      brazierCageMeshes.forEach((m) => { if (m) m.visible = showFlames; });
+      if (typeof brazierGlowSprites !== 'undefined') {
+        brazierGlowSprites.forEach((s) => { if (s) s.visible = showFlames; });
+      }
+      if (typeof brazierLights !== 'undefined') {
+        brazierLights.forEach((l) => { if (l) l.visible = showFlames; });
+      }
+
+      // 4. Secondary Window Point Lights
+      windowPointLights.forEach((l) => { if (l) l.visible = showWinLights; });
+
+      // 5. Hemisphere Ambient Illumination (clean & bright when side flames/point lights are off)
+      if (typeof hemiLight !== 'undefined' && hemiLight) {
+        hemiLight.intensity = showFlames ? 0.62 : 1.15;
+      }
+
+      // 6. PMREM Environment Map
+      if (typeof scene !== 'undefined') {
+        if (showEnvMap) {
+          if (!cachedCathedralEnvTex) {
+            cachedCathedralEnvTex = createCathedralPMREMEnvironment(renderer);
+          }
+          scene.environment = cachedCathedralEnvTex;
+          if ('environmentIntensity' in scene) {
+            scene.environmentIntensity = 0.24;
+          }
+        } else {
+          scene.environment = null;
+        }
+      }
+    }
+
+    function setGraphicsQuality(newSettings) {
+      if (!newSettings) return getGraphicsQuality();
+      if (typeof newSettings === 'string') {
+        if (newSettings === 'high' || newSettings === 'cinematic') {
+          currentGraphicsSettings.preset = 'high';
+          currentGraphicsSettings.flames = true;
+          currentGraphicsSettings.shadows = true;
+          currentGraphicsSettings.pixelRatio = 2.0;
+          currentGraphicsSettings.animations = 'cinematic';
+          currentGraphicsSettings.idleAnimations = true;
+          currentGraphicsSettings.envMap = true;
+          currentGraphicsSettings.windowLights = true;
+        } else {
+          currentGraphicsSettings.preset = 'lite';
+          currentGraphicsSettings.flames = false;
+          currentGraphicsSettings.shadows = false;
+          currentGraphicsSettings.pixelRatio = 1.0;
+          currentGraphicsSettings.animations = 'lite';
+          currentGraphicsSettings.idleAnimations = false;
+          currentGraphicsSettings.envMap = false;
+          currentGraphicsSettings.windowLights = false;
+        }
+      } else {
+        if (newSettings.preset !== undefined) currentGraphicsSettings.preset = newSettings.preset;
+        if (newSettings.flames !== undefined) currentGraphicsSettings.flames = Boolean(newSettings.flames);
+        if (newSettings.shadows !== undefined) currentGraphicsSettings.shadows = Boolean(newSettings.shadows);
+        if (newSettings.pixelRatio !== undefined) currentGraphicsSettings.pixelRatio = Number(newSettings.pixelRatio);
+        if (newSettings.animations !== undefined) currentGraphicsSettings.animations = newSettings.animations;
+        if (newSettings.idleAnimations !== undefined) currentGraphicsSettings.idleAnimations = Boolean(newSettings.idleAnimations);
+        if (newSettings.envMap !== undefined) currentGraphicsSettings.envMap = Boolean(newSettings.envMap);
+        if (newSettings.windowLights !== undefined) currentGraphicsSettings.windowLights = Boolean(newSettings.windowLights);
+      }
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentGraphicsSettings));
+      } catch (e) {}
+
+      applyGraphicsStateToScene();
+
+      window.dispatchEvent(
+        new CustomEvent('wizard-chess-graphics-changed', {
+          detail: { ...currentGraphicsSettings }
+        })
+      );
+
+      return { ...currentGraphicsSettings };
+    }
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x070a12);
@@ -91,9 +237,14 @@ export function initWizardChess() {
       return envTex;
     }
 
-    scene.environment = createCathedralPMREMEnvironment(renderer);
-    if ('environmentIntensity' in scene) {
-      scene.environmentIntensity = 0.24;
+    if (currentGraphicsSettings.envMap) {
+      cachedCathedralEnvTex = createCathedralPMREMEnvironment(renderer);
+      scene.environment = cachedCathedralEnvTex;
+      if ('environmentIntensity' in scene) {
+        scene.environmentIntensity = 0.24;
+      }
+    } else {
+      scene.environment = null;
     }
 
     const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.22, 65);
@@ -209,12 +360,16 @@ export function initWizardChess() {
     };
 
     // Dramatic Chiaroscuro Cathedral & Board Lighting (restoring original-example 3D stone relief & warm firelight contrast)
-    const hemiLight = new THREE.HemisphereLight(0xd8ccb8, 0x261d14, 0.62);
+    const hemiLight = new THREE.HemisphereLight(
+      0xd8ccb8,
+      0x261d14,
+      currentGraphicsSettings.flames ? 0.62 : 1.15
+    );
     scene.add(hemiLight);
 
     const keyLight = new THREE.DirectionalLight(0xfff0d6, 2.55);
     keyLight.position.set(3.8, 8.5, 4.2);
-    keyLight.castShadow = true;
+    keyLight.castShadow = Boolean(currentGraphicsSettings.shadows);
     keyLight.shadow.mapSize.width = 2048;
     keyLight.shadow.mapSize.height = 2048;
     keyLight.shadow.camera.near = 1.0;
@@ -246,6 +401,7 @@ export function initWizardChess() {
       const pLight = new THREE.PointLight(0xff8e32, cfg.baseIntensity, cfg.dist, 1.40);
       pLight.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
       pLight.userData.baseIntensity = cfg.baseIntensity;
+      pLight.visible = Boolean(currentGraphicsSettings.flames);
       scene.add(pLight);
       brazierLights.push(pLight);
     }
@@ -783,6 +939,7 @@ export function initWizardChess() {
         coreSprite.position.set(b.x, b.y + 0.28, b.z);
         coreSprite.scale.set(1.15, 1.25, 1.0);
         coreSprite.userData = { baseOpacity: 0.42, seed: b.seed };
+        coreSprite.visible = Boolean(currentGraphicsSettings.flames);
         scene.add(coreSprite);
         brazierGlowSprites.push(coreSprite);
 
@@ -799,6 +956,7 @@ export function initWizardChess() {
         haloSprite.position.set(b.x, b.y + 0.38, b.z);
         haloSprite.scale.set(2.45, 2.30, 1.0);
         haloSprite.userData = { baseOpacity: 0.28, seed: b.seed + 2.1 };
+        haloSprite.visible = Boolean(currentGraphicsSettings.flames);
         scene.add(haloSprite);
         brazierGlowSprites.push(haloSprite);
       }
@@ -806,22 +964,27 @@ export function initWizardChess() {
 
     createBrazierWarmGlowHalos();
 
-    // Consolidated Window Point Lights (4 side-aisle + 2 end-wall lights instead of 22 separate PointLights;
-    // fine local window & column raking relief is evaluated analytically in applyCathedralStoneRealismShader)
+    // Consolidated Window Point Lights (4 side-aisle + 2 end-wall lights)
     for (const wz of [-8.8, 8.2]) {
       for (const sideSign of [-1, 1]) {
         const winLight = new THREE.PointLight(0x90beff, 4.2, 16.5, 1.35);
         winLight.position.set(sideSign * 5.3, 4.1, wz);
+        winLight.visible = Boolean(currentGraphicsSettings.windowLights);
         scene.add(winLight);
+        windowPointLights.push(winLight);
       }
     }
     const northWinLight = new THREE.PointLight(0x9bc4ff, 6.4, 20.0, 1.30);
     northWinLight.position.set(0, 5.2, -18.2);
+    northWinLight.visible = Boolean(currentGraphicsSettings.windowLights);
     scene.add(northWinLight);
+    windowPointLights.push(northWinLight);
 
     const southWinLight = new THREE.PointLight(0xffb85c, 6.4, 20.0, 1.30);
     southWinLight.position.set(0, 5.2, 18.2);
+    southWinLight.visible = Boolean(currentGraphicsSettings.windowLights);
     scene.add(southWinLight);
+    windowPointLights.push(southWinLight);
 
     // Impact Flash Light (kept visible=true with intensity=0 when idle so Three.js never recompiles shaders mid-attack!)
     const impactFlashLight = new THREE.PointLight(0xffb74d, 0, 6.0, 1.5);
@@ -1250,6 +1413,8 @@ export function initWizardChess() {
                 child.castShadow = false;
                 child.receiveShadow = false;
                 child.renderOrder = 12;
+                brazierFlameMeshes.push(child);
+                child.visible = Boolean(currentGraphicsSettings.flames);
                 return;
               }
               if (meshName.includes('Brazier_Flame_Mid') || mNameFirst.includes('Flame_Mid')) {
@@ -1258,6 +1423,8 @@ export function initWizardChess() {
                 child.castShadow = false;
                 child.receiveShadow = false;
                 child.renderOrder = 11;
+                brazierFlameMeshes.push(child);
+                child.visible = Boolean(currentGraphicsSettings.flames);
                 return;
               }
               if (meshName.includes('Brazier_Flame_Outer') || mNameFirst.includes('Flame_Outer')) {
@@ -1265,13 +1432,21 @@ export function initWizardChess() {
                 child.castShadow = false;
                 child.receiveShadow = false;
                 child.renderOrder = 10;
+                brazierFlameMeshes.push(child);
+                child.visible = Boolean(currentGraphicsSettings.flames);
                 return;
               }
               if (meshName.includes('Embers_Logs') || mNameFirst.includes('Ember')) {
                 child.material = charredEmberLogsShader;
                 child.castShadow = false;
                 child.receiveShadow = false;
+                brazierFlameMeshes.push(child);
+                child.visible = Boolean(currentGraphicsSettings.flames);
                 return;
+              }
+              if (meshName.includes('Brazier_Stone_Plinths') || meshName.includes('Brazier_Wrought_Iron_Cages')) {
+                brazierCageMeshes.push(child);
+                child.visible = Boolean(currentGraphicsSettings.flames);
               }
 
               // Only the central Obsidian Altar casts real-time directional shadows;
@@ -1378,6 +1553,7 @@ export function initWizardChess() {
             setWallStoneLook(0);
             setFloorStoneLook(0);
             scene.add(cathedralRoot);
+            applyGraphicsStateToScene();
 
             bumpProgress('Cathedral Architecture Loaded...');
             resolve();
@@ -2434,6 +2610,110 @@ export function initWizardChess() {
         );
       }
 
+      function finishMove() {
+        resetBystandersToHome();
+        boardState[fromR][fromC] = null;
+        boardState[toR][toC] = piece;
+        piece.r = toR;
+        piece.c = toC;
+        piece.hasMoved = true;
+
+        if (isCastling && castleRook) {
+          boardState[fromR][castleRookFromC] = null;
+          boardState[fromR][castleRookToC] = castleRook;
+          castleRook.r = fromR;
+          castleRook.c = castleRookToC;
+          castleRook.hasMoved = true;
+          if (castleRook.mesh) {
+            castleRook.mesh.position.copy(castleRookEndPos);
+            castleRook.mesh.rotation.y = castleRook.color === 'w' ? Math.PI : 0;
+          }
+          playPieceClip(castleRook, 'Idle', true, 0.18);
+        }
+
+        // Pawn Promotion to Queen
+        if (piece.type === 'pawn' && (toR === 0 || toR === 7)) {
+          scene.remove(piece.mesh);
+          const promoted = instantiatePiece('queen', piece.color, toR, toC);
+          promoted.hasMoved = true;
+          boardState[toR][toC] = promoted;
+        } else {
+          piece.mesh.position.copy(endPos);
+          piece.mesh.rotation.y = piece.color === 'w' ? Math.PI : 0;
+          playPieceClip(piece, 'Idle', true, 0.18);
+        }
+
+        if (isCapture) {
+          if (piece.color === 'w') capturedByWhite += 1;
+          else capturedByBlack += 1;
+          activeDuelSavedCam = null;
+          camera.position.copy(savedCamPos);
+          orbitControls.target.copy(savedTarget);
+          orbitControls.enabled = true;
+          orbitControls.update();
+        }
+
+        currentTurn = currentTurn === 'w' ? 'b' : 'w';
+        isAnimatingMove = false;
+        updateTurnUI();
+        maybeScheduleAIMove();
+      }
+
+      // Fast, lightweight mobile & performance animation branch:
+      if (currentGraphicsSettings.animations === 'lite') {
+        const moveDuration = isCapture ? 0.30 : 0.25;
+        let elapsedLite = 0;
+        let capturePoofDone = false;
+
+        function stepMoveLite(dt) {
+          elapsedLite += dt;
+          const u = Math.min(1, elapsedLite / moveDuration);
+          const ease = easeOutCubic(u);
+
+          const archSin = Math.sin(u * Math.PI);
+          const hopHeight = piece.type === 'knight' ? 0.12 * archSin : 0.02 * archSin;
+          piece.mesh.position.set(
+            startPos.x + (endPos.x - startPos.x) * ease,
+            BOARD_SURFACE_Y + hopHeight,
+            startPos.z + (endPos.z - startPos.z) * ease
+          );
+
+          if (isCastling && castleRook && castleRook.mesh) {
+            castleRook.mesh.position.set(
+              castleRookStartPos.x + (castleRookEndPos.x - castleRookStartPos.x) * ease,
+              BOARD_SURFACE_Y + 0.02 * archSin,
+              castleRookStartPos.z + (castleRookEndPos.z - castleRookStartPos.z) * ease
+            );
+          }
+
+          if (isCapture && captured && captured.mesh) {
+            if (u >= 0.65 && !capturePoofDone) {
+              capturePoofDone = true;
+              if (captured.mesh.parent) {
+                scene.remove(captured.mesh);
+              }
+              impactFlashLight.position.set(endPos.x, BOARD_SURFACE_Y + 0.25, endPos.z);
+              impactFlashLight.intensity = 2.0;
+            } else if (u < 0.65) {
+              const shrink = Math.max(0, 1 - (u / 0.65) * 0.45);
+              captured.mesh.scale.setScalar(BOARD_SQ_SIZE * shrink);
+            }
+          }
+
+          if (u >= 1) {
+            if (isCapture && captured && captured.mesh && captured.mesh.parent) {
+              scene.remove(captured.mesh);
+            }
+            finishMove();
+            return true;
+          }
+          return false;
+        }
+
+        activeMoveTweens.push(stepMoveLite);
+        return true;
+      }
+
       if (isCapture) {
         activeDuelSavedCam = {
           pos: savedCamPos.clone(),
@@ -2493,55 +2773,6 @@ export function initWizardChess() {
       const postStrikePiecePos = strikePos.clone();
       let prevCamPos = camera.position.clone();
       let prevPiecePos = piece.mesh.position.clone();
-
-      function finishMove() {
-        resetBystandersToHome();
-        boardState[fromR][fromC] = null;
-        boardState[toR][toC] = piece;
-        piece.r = toR;
-        piece.c = toC;
-        piece.hasMoved = true;
-
-        if (isCastling && castleRook) {
-          boardState[fromR][castleRookFromC] = null;
-          boardState[fromR][castleRookToC] = castleRook;
-          castleRook.r = fromR;
-          castleRook.c = castleRookToC;
-          castleRook.hasMoved = true;
-          if (castleRook.mesh) {
-            castleRook.mesh.position.copy(castleRookEndPos);
-            castleRook.mesh.rotation.y = castleRook.color === 'w' ? Math.PI : 0;
-          }
-          playPieceClip(castleRook, 'Idle', true, 0.18);
-        }
-
-        // Pawn Promotion to Queen
-        if (piece.type === 'pawn' && (toR === 0 || toR === 7)) {
-          scene.remove(piece.mesh);
-          const promoted = instantiatePiece('queen', piece.color, toR, toC);
-          promoted.hasMoved = true;
-          boardState[toR][toC] = promoted;
-        } else {
-          piece.mesh.position.copy(endPos);
-          piece.mesh.rotation.y = piece.color === 'w' ? Math.PI : 0;
-          playPieceClip(piece, 'Idle', true, 0.18);
-        }
-
-        if (isCapture) {
-          if (piece.color === 'w') capturedByWhite += 1;
-          else capturedByBlack += 1;
-          activeDuelSavedCam = null;
-          camera.position.copy(savedCamPos);
-          orbitControls.target.copy(savedTarget);
-          orbitControls.enabled = true;
-          orbitControls.update();
-        }
-
-        currentTurn = currentTurn === 'w' ? 'b' : 'w';
-        isAnimatingMove = false;
-        updateTurnUI();
-        maybeScheduleAIMove();
-      }
 
       function stepMove(dt) {
         elapsed += dt;
@@ -3639,12 +3870,14 @@ export function initWizardChess() {
           checkmateState.phase = 'impact';
           if (!impactTriggered) {
             impactTriggered = true;
-            const crownImpactPos = new THREE.Vector3(
-              homePos.x + fallDirX * 0.45,
-              BOARD_SURFACE_Y,
-              homePos.z + fallDirZ * 0.45
-            );
-            spawnKingFallImpact(crownImpactPos, defeatedColor);
+            if (currentGraphicsSettings.animations === 'cinematic') {
+              const crownImpactPos = new THREE.Vector3(
+                homePos.x + fallDirX * 0.45,
+                BOARD_SURFACE_Y,
+                homePos.z + fallDirZ * 0.45
+              );
+              spawnKingFallImpact(crownImpactPos, defeatedColor);
+            }
           }
 
           const uBounce = Math.min(1, (elapsed - tImpact) / (tTotal - tImpact));
@@ -3652,8 +3885,8 @@ export function initWizardChess() {
           const theta = MAX_FALL_RAD - Math.abs(Math.sin(uBounce * Math.PI * 2.0)) * bounceAmp;
           applyKingTopplePose(theta, 0);
 
-          // Subtle damped camera tremor when the heavy stone King crashes onto the altar board
-          if (elapsed <= tImpact + 0.28) {
+          // Damped camera tremor when the heavy stone King crashes in cinematic mode
+          if (currentGraphicsSettings.animations === 'cinematic' && elapsed <= tImpact + 0.28) {
             const sProg = (elapsed - tImpact) / 0.28;
             const decay = (1 - sProg) * (1 - sProg);
             camera.position.y += Math.cos(sProg * Math.PI * 8) * 0.022 * decay;
@@ -4430,6 +4663,8 @@ export function initWizardChess() {
     // Programmatic API for Automated Verification & Camera Inspection
     // =========================================================================
     window.wizardChess = {
+      setGraphicsQuality,
+      getGraphicsQuality,
       setCameraPreset,
       setCameraPose,
       setCameraLook: setCameraPose,
@@ -4717,8 +4952,12 @@ export function initWizardChess() {
       elapsedTotal += dt;
       const prevCamPos = camera.position.clone();
 
-      for (const mixer of activeMixers) {
-        mixer.update(dt);
+      const shouldUpdateMixers =
+        currentGraphicsSettings.idleAnimations || isAnimatingMove || activeMoveTweens.length > 0;
+      if (shouldUpdateMixers) {
+        for (const mixer of activeMixers) {
+          mixer.update(dt);
+        }
       }
 
       // Feature 3c: Advance pre-move piece selection & valid-squares highlight beat before executing scripted move
@@ -4905,25 +5144,27 @@ export function initWizardChess() {
         }
       }
 
-      // Advance volumetric GLSL brazier flames & active warm firelight flicker
-      for (let i = 0; i < brazierFireUniforms.length; i++) {
-        brazierFireUniforms[i].uTime.value = elapsedTotal;
-      }
-      for (let i = 0; i < brazierGlowSprites.length; i++) {
-        const sp = brazierGlowSprites[i];
-        const baseOp = sp.userData.baseOpacity || 0.4;
-        const seed = sp.userData.seed || 0;
-        sp.material.opacity =
-          baseOp +
-          Math.sin(elapsedTotal * 5.2 + seed) * 0.045 +
-          Math.cos(elapsedTotal * 8.4 + seed * 1.3) * 0.025;
-      }
-      for (let i = 0; i < brazierLights.length; i++) {
-        const baseInt = brazierLights[i].userData.baseIntensity || 3.2;
-        brazierLights[i].intensity =
-          baseInt +
-          Math.sin(elapsedTotal * 5.6 + i * 1.7) * 0.28 +
-          Math.cos(elapsedTotal * 9.1 + i) * 0.16;
+      // Advance volumetric GLSL brazier flames & active warm firelight flicker (only when flames are enabled!)
+      if (currentGraphicsSettings.flames) {
+        for (let i = 0; i < brazierFireUniforms.length; i++) {
+          brazierFireUniforms[i].uTime.value = elapsedTotal;
+        }
+        for (let i = 0; i < brazierGlowSprites.length; i++) {
+          const sp = brazierGlowSprites[i];
+          const baseOp = sp.userData.baseOpacity || 0.4;
+          const seed = sp.userData.seed || 0;
+          sp.material.opacity =
+            baseOp +
+            Math.sin(elapsedTotal * 5.2 + seed) * 0.045 +
+            Math.cos(elapsedTotal * 8.4 + seed * 1.3) * 0.025;
+        }
+        for (let i = 0; i < brazierLights.length; i++) {
+          const baseInt = brazierLights[i].userData.baseIntensity || 3.2;
+          brazierLights[i].intensity =
+            baseInt +
+            Math.sin(elapsedTotal * 5.6 + i * 1.7) * 0.28 +
+            Math.cos(elapsedTotal * 9.1 + i) * 0.16;
+        }
       }
 
       if (isAnimatingMove || activeMoveTweens.length > 0 || shatterDebris.length > 0 || checkmateState.active) {
