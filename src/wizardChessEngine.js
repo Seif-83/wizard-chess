@@ -1617,7 +1617,17 @@ export function initWizardChess() {
     let capturedByBlack = 0;
 
     // Mode & Player Configuration
-    let gameMode = 'single'; // 'single' | 'multi'
+    const MODE_STORAGE_KEY = 'wizard_chess_game_mode';
+    const AUTOFLIP_STORAGE_KEY = 'wizard_chess_autoflip_camera';
+    let gameMode = 'single'; // 'single' | 'local' | 'multi'
+    try {
+      const savedMode = localStorage.getItem(MODE_STORAGE_KEY);
+      if (savedMode === 'local') gameMode = 'local';
+    } catch (e) {}
+    let autoFlipCamera = false;
+    try {
+      autoFlipCamera = localStorage.getItem(AUTOFLIP_STORAGE_KEY) === 'true';
+    } catch (e) {}
     let playerColor = 'w';   // 'w' | 'b' | 'spectator'
     let aiAutoPlay = true;
     let aiTimer = null;
@@ -1695,6 +1705,74 @@ export function initWizardChess() {
       } else {
         smoothCameraTo(desiredPos, desiredTarget, 0.75);
       }
+    }
+
+    function orientCameraForLocalTurn(turnColor) {
+      const isPlayerActive = document.getElementById('btn-cam-player')?.classList.contains('active');
+      const isTopActive = document.getElementById('btn-cam-top')?.classList.contains('active');
+      if (isPlayerActive) {
+        playerCamSide = turnColor;
+        setCameraForSide(turnColor, false);
+      } else if (isTopActive) {
+        overheadCamSide = turnColor;
+        setCameraForTop(turnColor, false);
+      }
+    }
+
+    function flipLocalCamera() {
+      const isPlayerActive = document.getElementById('btn-cam-player')?.classList.contains('active');
+      if (isPlayerActive) {
+        playerCamSide = playerCamSide === 'w' ? 'b' : 'w';
+        setCameraForSide(playerCamSide, false);
+      } else {
+        overheadCamSide = overheadCamSide === 'w' ? 'b' : 'w';
+        if (!document.getElementById('btn-cam-top')?.classList.contains('active')) {
+          setActiveCamButton('btn-cam-top');
+        }
+        setCameraForTop(overheadCamSide, false);
+      }
+    }
+
+    function setGameMode(mode, resetBoardIfEmpty = false) {
+      if (mode !== 'single' && mode !== 'local' && mode !== 'multi') return;
+      gameMode = mode;
+      try {
+        localStorage.setItem(MODE_STORAGE_KEY, mode);
+      } catch (e) {}
+
+      if (aiTimer) {
+        clearTimeout(aiTimer);
+        aiTimer = null;
+      }
+
+      if (mode === 'local') {
+        if (resetBoardIfEmpty && moveHistory.length === 0) {
+          resetChessBoard(true);
+        } else {
+          updateTurnUI();
+        }
+      } else if (mode === 'single') {
+        updateTurnUI();
+        maybeScheduleAIMove();
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('wizard-chess-mode-changed', {
+          detail: { gameMode, autoFlipCamera }
+        })
+      );
+    }
+
+    function setAutoFlipCamera(val) {
+      autoFlipCamera = Boolean(val);
+      try {
+        localStorage.setItem(AUTOFLIP_STORAGE_KEY, String(autoFlipCamera));
+      } catch (e) {}
+      window.dispatchEvent(
+        new CustomEvent('wizard-chess-mode-changed', {
+          detail: { gameMode, autoFlipCamera }
+        })
+      );
     }
 
     function instantiatePiece(type, color, r, c) {
@@ -2656,6 +2734,9 @@ export function initWizardChess() {
         currentTurn = currentTurn === 'w' ? 'b' : 'w';
         isAnimatingMove = false;
         updateTurnUI();
+        if (gameMode === 'local' && autoFlipCamera) {
+          orientCameraForLocalTurn(currentTurn);
+        }
         maybeScheduleAIMove();
       }
 
@@ -3582,7 +3663,7 @@ export function initWizardChess() {
     }
 
     window.addEventListener('keydown', (e) => {
-      if (isTypingInInput(document.activeElement)) return;
+      if (isTypingInInput(document.activeElement) || isTypingInInput(e.target)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       if (CAM_MOVE_KEY_CODES.has(e.code)) {
@@ -3591,9 +3672,20 @@ export function initWizardChess() {
         return;
       }
 
-      if (e.code === 'KeyH' || e.code === 'KeyU') {
-        e.preventDefault();
-        toggleUI();
+      const keyLower = (e.key || '').toLowerCase();
+      const isHKey =
+        e.code === 'KeyH' ||
+        keyLower === 'h' ||
+        e.key === 'ا' ||
+        e.code === 'KeyU' ||
+        keyLower === 'u';
+
+      if (isHKey) {
+        if (e.repeat) return;
+        if (!document.getElementById('settings-modal')) {
+          e.preventDefault();
+          toggleUI();
+        }
       }
     });
 
@@ -3654,7 +3746,12 @@ export function initWizardChess() {
       if (crownEl) crownEl.textContent = winnerColor === 'w' ? '♔' : '♚';
       if (titleEl) titleEl.textContent = 'Checkmate';
       if (subEl) {
-        subEl.textContent = `${winnerName} Triumphs • The ${defeatedName} King Has Fallen`;
+        if (gameMode === 'local') {
+          const winnerPlayer = winnerColor === 'w' ? 'Player 1' : 'Player 2';
+          subEl.textContent = `${winnerName} (${winnerPlayer}) Triumphs • The ${defeatedName} King Has Fallen`;
+        } else {
+          subEl.textContent = `${winnerName} Triumphs • The ${defeatedName} King Has Fallen`;
+        }
       }
       if (overlay) {
         overlay.classList.add('visible');
@@ -3929,7 +4026,10 @@ export function initWizardChess() {
         gameOver = true;
         if (inCheck) {
           const winner = currentTurn === 'w' ? 'Black' : 'White';
-          turnText.textContent = `Checkmate — ${winner} Wins`;
+          const winnerTitle = gameMode === 'local'
+            ? `${winner} (${winner === 'White' ? 'Player 1' : 'Player 2'}) Wins`
+            : `${winner} Wins`;
+          turnText.textContent = `Checkmate — ${winnerTitle}`;
           if (!checkmateState.active) {
             triggerCheckmateSequence(currentTurn, currentTurn === 'w' ? 'b' : 'w');
           }
@@ -3941,24 +4041,55 @@ export function initWizardChess() {
         const aiColor = playerColor === 'w' ? 'b' : 'w';
         const isAiTurn = !scriptedGameActive && gameMode === 'single' && currentTurn === aiColor;
         if (inCheck) {
-          turnText.textContent = `${turnLabel} (Check!)`;
+          if (gameMode === 'local') {
+            const pName = currentTurn === 'w' ? 'White (P1)' : 'Black (P2)';
+            turnText.textContent = `${pName} to Move (Check!)`;
+          } else {
+            turnText.textContent = `${turnLabel} (Check!)`;
+          }
         } else if (isAiTurn) {
           turnText.textContent = `${turnLabel} (AI)...`;
+        } else if (gameMode === 'local') {
+          const pName = currentTurn === 'w' ? 'White (Player 1)' : 'Black (Player 2)';
+          turnText.textContent = `${pName} to Move`;
         } else {
           turnText.textContent = turnLabel;
         }
       }
 
       if (modeBadge) {
-        modeBadge.textContent = `Playing as ${playerColor === 'w' ? 'White' : 'Black'}`;
+        if (gameMode === 'local') {
+          modeBadge.textContent = '👥 2 Players (Local)';
+          modeBadge.title = '2-Player Pass & Play mode. Click to switch to vs AI';
+        } else {
+          modeBadge.textContent = `Playing as ${playerColor === 'w' ? 'White' : 'Black'}`;
+          modeBadge.title = 'Single-player vs AI. Click to switch to 2 Players (Local)';
+        }
       }
       if (btnAiMove) {
         btnAiMove.style.display = 'inline-flex';
+        if (gameMode === 'local') {
+          btnAiMove.textContent = 'AI Hint 💡';
+          btnAiMove.title = 'Let the Sanctum AI suggest and play a move for the current player';
+        } else {
+          btnAiMove.textContent = 'AI Move';
+          btnAiMove.title = 'Let the AI make the next move immediately';
+        }
       }
       if (btnSideToggle) {
         btnSideToggle.style.display = 'inline-flex';
-        btnSideToggle.textContent = playerColor === 'w' ? 'Play as Black' : 'Play as White';
+        if (gameMode === 'local') {
+          btnSideToggle.textContent = 'Flip View 🔄';
+          btnSideToggle.title = 'Rotate camera view between White and Black player sides';
+        } else {
+          btnSideToggle.textContent = playerColor === 'w' ? 'Play as Black' : 'Play as White';
+          btnSideToggle.title = 'Switch between Playing as White and Playing as Black';
+        }
       }
+      const btnModeAi = document.getElementById('btn-mode-ai');
+      const btnModeLocal = document.getElementById('btn-mode-local');
+      if (btnModeAi) btnModeAi.classList.toggle('active', gameMode === 'single');
+      if (btnModeLocal) btnModeLocal.classList.toggle('active', gameMode === 'local');
       if (roomPill) {
         roomPill.style.display = 'none';
       }
@@ -4492,9 +4623,21 @@ export function initWizardChess() {
     });
 
     document.getElementById('btn-side-toggle')?.addEventListener('click', () => {
+      if (gameMode === 'local') {
+        flipLocalCamera();
+        return;
+      }
       if (gameMode !== 'single') return;
       playerColor = playerColor === 'w' ? 'b' : 'w';
       resetChessBoard(true, scriptedGameActive);
+    });
+
+    document.getElementById('btn-mode-ai')?.addEventListener('click', () => {
+      setGameMode('single');
+    });
+
+    document.getElementById('btn-mode-local')?.addEventListener('click', () => {
+      setGameMode('local');
     });
 
     document.getElementById('btn-reset')?.addEventListener('click', async () => {
@@ -4760,8 +4903,14 @@ export function initWizardChess() {
         currentTurn = 'w';
         return executeChessMove(4, 4, 3, 3);
       },
+      setGameMode,
+      getGameMode: () => gameMode,
+      setAutoFlipCamera,
+      getAutoFlipCamera: () => autoFlipCamera,
+      flipLocalCamera,
       getState: () => ({
         gameMode,
+        autoFlipCamera,
         scriptedGameActive,
         scriptDeviated,
         scriptMovesCount: scriptMoves.length,

@@ -27,6 +27,21 @@ export default function App() {
   const initializedRef = useRef(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [gameMode, setGameMode] = useState<'single' | 'local'>(() => {
+    try {
+      const saved = localStorage.getItem('wizard_chess_game_mode');
+      return saved === 'local' ? 'local' : 'single';
+    } catch (e) {
+      return 'single';
+    }
+  });
+  const [autoFlipCamera, setAutoFlipCamera] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('wizard_chess_autoflip_camera') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
   const [graphicsSettings, setGraphicsSettings] = useState<GraphicsSettings>(() => {
     try {
       const saved = localStorage.getItem('wizard_chess_graphics_settings');
@@ -75,14 +90,23 @@ export default function App() {
         setGraphicsSettings(customEvt.detail);
       }
     };
+    const handleModeEvent = (e: Event) => {
+      const customEvt = e as CustomEvent<{ gameMode?: 'single' | 'local'; autoFlipCamera?: boolean }>;
+      if (customEvt.detail) {
+        if (customEvt.detail.gameMode) setGameMode(customEvt.detail.gameMode);
+        if (customEvt.detail.autoFlipCamera !== undefined) setAutoFlipCamera(customEvt.detail.autoFlipCamera);
+      }
+    };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('resize', handleResize);
     window.addEventListener('wizard-chess-graphics-changed', handleGraphicsEvent);
+    window.addEventListener('wizard-chess-mode-changed', handleModeEvent);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('wizard-chess-graphics-changed', handleGraphicsEvent);
+      window.removeEventListener('wizard-chess-mode-changed', handleModeEvent);
     };
   }, [settingsOpen]);
 
@@ -152,6 +176,20 @@ export default function App() {
     });
   };
 
+  const handleToggleUI = () => {
+    setMobileSheetOpen(false);
+    const win = window as unknown as { wizardChess?: { toggleUI?: (force?: boolean) => boolean } };
+    if (win.wizardChess?.toggleUI) {
+      win.wizardChess.toggleUI();
+    } else {
+      const isHidden = document.body.classList.toggle('cinematic-ui-hidden');
+      const btnHide = document.getElementById('btn-hide-ui');
+      if (btnHide) {
+        btnHide.textContent = isHidden ? 'Show UI [H]' : 'Hide UI [H]';
+      }
+    }
+  };
+
   const handleRestoreUI = () => {
     const win = window as unknown as { wizardChess?: { toggleUI?: (force?: boolean) => void } };
     if (win.wizardChess?.toggleUI) {
@@ -160,6 +198,27 @@ export default function App() {
       document.body.classList.remove('cinematic-ui-hidden');
       const btnHide = document.getElementById('btn-hide-ui');
       if (btnHide) btnHide.textContent = 'Hide UI [H]';
+    }
+  };
+
+  const handleSelectGameMode = (mode: 'single' | 'local') => {
+    setGameMode(mode);
+    const win = window as unknown as {
+      wizardChess?: { setGameMode?: (m: 'single' | 'local') => void };
+    };
+    if (win.wizardChess?.setGameMode) {
+      win.wizardChess.setGameMode(mode);
+    }
+  };
+
+  const handleToggleAutoFlip = () => {
+    const next = !autoFlipCamera;
+    setAutoFlipCamera(next);
+    const win = window as unknown as {
+      wizardChess?: { setAutoFlipCamera?: (v: boolean) => void };
+    };
+    if (win.wizardChess?.setAutoFlipCamera) {
+      win.wizardChess.setAutoFlipCamera(next);
     }
   };
 
@@ -177,12 +236,13 @@ export default function App() {
 
       <button
         type="button"
-        className="hud-btn mobile-only-restore-ui"
+        className="hud-btn restore-ui-float-btn mobile-only-restore-ui"
         id="btn-mobile-show-ui"
         onClick={handleRestoreUI}
-        title="Show HUD Controls"
+        title="Show HUD Controls (Shortcut: H)"
       >
-        Show UI
+        <span>👁️</span>
+        <span>Show UI [H]</span>
       </button>
 
       <div id="hud-top">
@@ -193,7 +253,14 @@ export default function App() {
           <div className="status-pill" id="status-pill">
             <span className="turn-dot" id="turn-dot"></span>
             <span id="turn-text">White to Move</span>
-            <span className="mode-badge" id="mode-badge">Playing as White</span>
+            <span
+              className="mode-badge clickable"
+              id="mode-badge"
+              title="Click to toggle game mode: vs AI or 2 Players (Local)"
+              onClick={() => handleSelectGameMode(gameMode === 'single' ? 'local' : 'single')}
+            >
+              {gameMode === 'local' ? '👥 2 Players (Local)' : 'Playing as White'}
+            </span>
           </div>
         </div>
 
@@ -248,23 +315,73 @@ export default function App() {
             </button>
           </div>
 
+          <div className="mobile-sheet-section-label">Game Mode</div>
+
+          <div className="hud-mode-pill-group" id="mode-pill-group">
+            <button
+              type="button"
+              className={`hud-btn mode-pill-btn ${gameMode === 'single' ? 'active' : ''}`}
+              id="btn-mode-ai"
+              title="Play against Sanctum Wizard AI"
+              onClick={() => {
+                handleSelectGameMode('single');
+                setMobileSheetOpen(false);
+              }}
+            >
+              🤖 vs AI
+            </button>
+            <button
+              type="button"
+              className={`hud-btn mode-pill-btn ${gameMode === 'local' ? 'active' : ''}`}
+              id="btn-mode-local"
+              title="Play with 2 players on this device (Pass & Play)"
+              onClick={() => {
+                handleSelectGameMode('local');
+                setMobileSheetOpen(false);
+              }}
+            >
+              👥 2 Players
+            </button>
+          </div>
+
+          {gameMode === 'local' && (
+            <button
+              type="button"
+              className={`hud-btn mode-autoflip-btn ${autoFlipCamera ? 'active' : ''}`}
+              id="btn-toggle-autoflip"
+              title="Automatically rotate camera view to active player each turn"
+              onClick={handleToggleAutoFlip}
+            >
+              <span>🔄 Auto-Rotate: {autoFlipCamera ? 'On' : 'Off'}</span>
+            </button>
+          )}
+
+          <div className="hud-divider" aria-hidden="true"></div>
           <div className="mobile-sheet-section-label">Game Actions</div>
 
           <button
             className="hud-btn"
             id="btn-side-toggle"
-            title="Switch between Playing as White and Playing as Black"
+            title={
+              gameMode === 'local'
+                ? 'Rotate camera view between White and Black player sides'
+                : 'Switch between Playing as White and Playing as Black'
+            }
             onClick={() => setMobileSheetOpen(false)}
           >
-            Play as Black
+            {gameMode === 'local' ? 'Flip View 🔄' : 'Play as Black'}
           </button>
           <button
             className="hud-btn"
             id="btn-ai-move"
-            title="Let the AI make the next move immediately"
+            title={
+              gameMode === 'local'
+                ? 'Let the AI make a suggested move for the current player'
+                : 'Let the AI make the next move immediately'
+            }
             onClick={() => setMobileSheetOpen(false)}
           >
-            AI Move
+            {gameMode === 'local' ? 'AI Hint 💡' : 'AI Move'}
           </button>
           <button
             className="hud-btn"
@@ -334,7 +451,7 @@ export default function App() {
             className="hud-btn"
             id="btn-hide-ui"
             title="Toggle HUD visibility (Shortcut: H)"
-            onClick={() => setMobileSheetOpen(false)}
+            onClick={handleToggleUI}
           >
             Hide UI [H]
           </button>
@@ -347,9 +464,17 @@ export default function App() {
 
       <div id="hud-bottom">
         <div className="hint-pill" id="controls-hint">
-          <strong>Controls:</strong> Click Piece to Move &nbsp;•&nbsp; Left-Drag: Orbit &nbsp;•&nbsp; Right-Drag: Pan &nbsp;•&nbsp; Scroll: Zoom &nbsp;•&nbsp; WASD + R/F: Fly Cam &nbsp;•&nbsp; H: Hide UI
+          {gameMode === 'local' ? (
+            <span>
+              <strong>2-Player Mode:</strong> Pass &amp; Play on Same Device &nbsp;•&nbsp; White (P1) vs Black (P2) &nbsp;•&nbsp; Tap piece to move &nbsp;•&nbsp; H: Hide UI
+            </span>
+          ) : (
+            <span>
+              <strong>Controls:</strong> Click Piece to Move &nbsp;•&nbsp; Left-Drag: Orbit &nbsp;•&nbsp; Right-Drag: Pan &nbsp;•&nbsp; Scroll: Zoom &nbsp;•&nbsp; WASD + R/F: Fly Cam &nbsp;•&nbsp; H: Hide UI
+            </span>
+          )}
         </div>
-        <div className="captured-pill" id="captured-tray"></div>
+        <div className="captured-tray" id="captured-tray"></div>
       </div>
 
       {settingsOpen && (
@@ -586,6 +711,66 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              <div className="settings-toggle-row">
+                <div className="toggle-info">
+                  <div className="toggle-title">Match Mode</div>
+                  <div className="toggle-desc">
+                    {gameMode === 'local'
+                      ? '2 Players on Same Device (Pass & Play on this screen without AI)'
+                      : 'Single Player vs Sanctum Wizard AI'}
+                  </div>
+                </div>
+                <div className="toggle-pill-group">
+                  <button
+                    type="button"
+                    className={`toggle-pill-btn ${gameMode === 'single' ? 'active' : ''}`}
+                    onClick={() => handleSelectGameMode('single')}
+                  >
+                    🤖 vs AI
+                  </button>
+                  <button
+                    type="button"
+                    className={`toggle-pill-btn ${gameMode === 'local' ? 'active' : ''}`}
+                    onClick={() => handleSelectGameMode('local')}
+                  >
+                    👥 2 Players
+                  </button>
+                </div>
+              </div>
+
+              {gameMode === 'local' && (
+                <div className="settings-toggle-row">
+                  <div className="toggle-info">
+                    <div className="toggle-title">2-Player Auto-Rotate Camera</div>
+                    <div className="toggle-desc">
+                      {autoFlipCamera
+                        ? 'Camera smoothly rotates to the current player after each move'
+                        : 'Camera stays in fixed view (ideal for overhead view or shared tablet)'}
+                    </div>
+                  </div>
+                  <div className="toggle-pill-group">
+                    <button
+                      type="button"
+                      className={`toggle-pill-btn ${!autoFlipCamera ? 'active' : ''}`}
+                      onClick={() => {
+                        if (autoFlipCamera) handleToggleAutoFlip();
+                      }}
+                    >
+                      Fixed View
+                    </button>
+                    <button
+                      type="button"
+                      className={`toggle-pill-btn ${autoFlipCamera ? 'active' : ''}`}
+                      onClick={() => {
+                        if (!autoFlipCamera) handleToggleAutoFlip();
+                      }}
+                    >
+                      Auto-Rotate
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="settings-modal-footer">

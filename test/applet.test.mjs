@@ -72,3 +72,16 @@ test('All 7 compressed 3D assets (.glb.gz.b64) decode and gunzip to valid glTF 2
     assert.equal(totalLen, glbBuf.length, `Mismatched glTF byte length for ${name}`);
   }
 });
+
+test('Local 2-Player (Same Device) mode controls and engine methods are defined', () => {
+  const appTsx = fs.readFileSync(path.join(ROOT, 'src/App.tsx'), 'utf-8');
+  assert.ok(appTsx.includes('id="btn-mode-ai"'), 'Missing #btn-mode-ai button in App.tsx');
+  assert.ok(appTsx.includes('id="btn-mode-local"'), 'Missing #btn-mode-local button in App.tsx');
+
+  const engineJs = fs.readFileSync(path.join(ROOT, 'src/wizardChessEngine.js'), 'utf-8');
+  assert.ok(engineJs.includes('setGameMode'), 'Missing setGameMode in wizardChessEngine.js');
+  assert.ok(engineJs.includes('setAutoFlipCamera'), 'Missing setAutoFlipCamera in wizardChessEngine.js');
+  assert.ok(engineJs.includes('flipLocalCamera'), 'Missing flipLocalCamera in wizardChessEngine.js');
+  assert.ok(engineJs.includes('orientCameraForLocalTurn'), 'Missing orientCameraForLocalTurn in wizardChessEngine.js');
+  assert.ok(engineJs.includes("gameMode === 'local'"), 'Missing local mode checks in wizardChessEngine.js');
+});
