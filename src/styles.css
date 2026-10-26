@@ -903,15 +903,53 @@ body.cinematic-ui-hidden .restore-ui-float-btn:hover {
   align-items: center;
   gap: 8px;
   border-color: rgba(212, 175, 55, 0.35);
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease,
+    color 0.25s ease,
+    box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.25s ease;
+}
+
+.hud-settings-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at center, rgba(212, 175, 55, 0.18) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .hud-settings-btn:hover {
   border-color: var(--gold);
+  color: var(--gold-bright);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(212, 175, 55, 0.24);
+}
+
+.hud-settings-btn:hover::before {
+  opacity: 1;
+}
+
+.hud-settings-btn:active {
+  transform: translateY(0) scale(0.97);
+  transition: transform 0.1s ease;
 }
 
 .settings-btn-icon {
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   line-height: 1;
+  display: inline-block;
+  transform-origin: center center;
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hud-settings-btn:hover .settings-btn-icon {
+  transform: rotate(90deg);
 }
 
 .settings-mode-pill {
@@ -923,6 +961,13 @@ body.cinematic-ui-hidden .restore-ui-float-btn:hover {
   background: rgba(212, 175, 55, 0.16);
   color: var(--gold-bright);
   border: 1px solid rgba(212, 175, 55, 0.35);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hud-settings-btn:hover .settings-mode-pill {
+  background: rgba(212, 175, 55, 0.28);
+  border-color: var(--gold);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
 }
 
 /* Modal Backdrop */
@@ -930,14 +975,15 @@ body.cinematic-ui-hidden .restore-ui-float-btn:hover {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(5, 7, 14, 0.78);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(5, 7, 14, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
-  animation: settingsFadeIn 0.22s ease-out;
+  animation: settingsFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  overscroll-behavior: contain;
 }
 
 @keyframes settingsFadeIn {
@@ -951,45 +997,53 @@ body.cinematic-ui-hidden .restore-ui-float-btn:hover {
 
 /* Modal Card */
 .settings-modal-card {
-  background: linear-gradient(180deg, rgba(16, 21, 32, 0.96) 0%, rgba(9, 12, 18, 0.98) 100%);
+  background: linear-gradient(180deg, rgba(16, 21, 32, 0.97) 0%, rgba(9, 12, 18, 0.99) 100%);
   border: 1px solid rgba(212, 175, 55, 0.42);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85), 0 0 45px rgba(212, 175, 55, 0.14);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.88), 0 0 45px rgba(212, 175, 55, 0.16);
   border-radius: 20px;
   width: 100%;
   max-width: 540px;
   max-height: 88vh;
   overflow-y: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(212, 175, 55, 0.4) rgba(0, 0, 0, 0.2);
+  scrollbar-color: rgba(212, 175, 55, 0.45) rgba(0, 0, 0, 0.28);
   padding: 22px 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  animation: settingsSlideUp 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+  animation: settingsSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--text);
 }
 
 .settings-modal-card::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .settings-modal-card::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.28);
   border-radius: 999px;
+  margin: 10px 0;
 }
 
 .settings-modal-card::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 55, 0.35);
+  background: rgba(212, 175, 55, 0.38);
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.25s ease;
 }
 
 .settings-modal-card::-webkit-scrollbar-thumb:hover {
-  background: var(--gold);
+  background: var(--gold-bright);
+  background-clip: padding-box;
 }
 
 @keyframes settingsSlideUp {
   from {
-    transform: translateY(16px) scale(0.97);
+    transform: translateY(18px) scale(0.97);
     opacity: 0;
   }
   to {
@@ -1033,14 +1087,15 @@ body.cinematic-ui-hidden .restore-ui-float-btn:hover {
   justify-content: center;
   font-size: 0.88rem;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
 }
 
 .settings-modal-close:hover {
   border-color: var(--gold);
   color: var(--gold-bright);
-  background: rgba(212, 175, 55, 0.12);
+  background: rgba(212, 175, 55, 0.16);
+  transform: rotate(90deg) scale(1.08);
 }
 
 .settings-section-title {
